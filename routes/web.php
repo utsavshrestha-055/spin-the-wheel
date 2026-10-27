@@ -15,7 +15,7 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
-    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/dashboard', DashboardController::class.'@__invoke')->name('dashboard');
     Route::get('/participants', [ParticipantController::class, 'index'])->name('participants.index');
     Route::post('/participants', [ParticipantController::class, 'store'])->name('participants.store');
     Route::post('/participants/import', [ParticipantController::class, 'import'])->middleware('throttle:10,1')->name('participants.import');
