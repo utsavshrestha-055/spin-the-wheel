@@ -86,17 +86,17 @@ class GameController extends Controller
             ->with('state', $state);
     }
 
-    public function stage(Game $game): Response
+    public function stage(Game $game, Request $request): Response
     {
-        $this->authorize('view', $game);
-
-        return Inertia::render('Games/Stage', ['gameId' => $game->public_id, 'initialState' => $this->stateData($game)]);
+        return Inertia::render('Games/Stage', [
+            'gameId' => $game->public_id,
+            'initialState' => $this->stateData($game),
+            'canManage' => $request->user()?->can('update', $game) ?? false,
+        ]);
     }
 
     public function state(Game $game): JsonResponse
     {
-        $this->authorize('view', $game);
-
         return response()->json($this->stateData($game));
     }
 

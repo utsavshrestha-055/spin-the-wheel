@@ -9,7 +9,7 @@ const form = useForm({ email: '', password: '', remember: true });
     <Head title="Sign in" />
     <div class="login-page">
         <form class="panel login-card login-brand-card" @submit.prevent="form.post('/login')">
-            <div class="login-logo"><RealHoNiLogo light /></div>
+            <!-- <div class="login-logo"><RealHoNiLogo light /></div> -->
             <div class="eyebrow">Admin workspace</div>
             <h1 style="font-size: 32px">Welcome back</h1>
             <p class="muted" style="font-size: 13px; line-height: 1.7">Sign in to manage participants and run your next draw.</p>

@@ -12,6 +12,7 @@ const rollingName = ref('');
 const wheel = ref(null);
 const toast = ref('');
 const toastType = ref('');
+const cancelling = ref(false);
 const round = computed(() => state.value.round);
 const visibleWinners = computed(() => {
     const winners = round.value?.winners || [];
@@ -19,6 +20,7 @@ const visibleWinners = computed(() => {
     return spinning.value && pendingWinner.value ? winners.slice(0, -1) : winners;
 });
 const completed = computed(() => state.value.game.status === 'completed');
+const canCancel = computed(() => ['draft', 'in_progress'].includes(state.value.game.status));
 const wheelStyle = computed(() => {
     const colors = ['var(--brand-orange)', 'var(--brand-white)', 'var(--brand-orange-soft)', 'var(--leaf-green)'];
     const segments = state.value.round?.segments || [];
@@ -108,6 +110,21 @@ function startNextRound() {
     });
 }
 
+function cancelGame() {
+    if (!window.confirm('Cancel this game?')) {
+        return;
+    }
+
+    cancelling.value = true;
+    router.post(`/games/${props.game.public_id}/cancel`, {}, {
+        onError: (errors) => {
+            toastType.value = '';
+            toast.value = errors.game || 'Unable to cancel this game.';
+        },
+        onFinish: () => { cancelling.value = false; },
+    });
+}
+
 onMounted(() => {
     if ('BroadcastChannel' in window) {
         stageChannel = new BroadcastChannel(`real-ho-ni-game-${props.game.public_id}`);
@@ -127,7 +144,7 @@ onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); cl
                 <div class="muted">{{ game.participant_count.toLocaleString() }} players in the snapshot · started {{ new Date(game.started_at).toLocaleString() }}</div>
             </div>
             <div class="toolbar">
-                <button v-if="!completed" class="button danger" @click="confirm('Cancel this game?') && router.post(`/games/${game.public_id}/cancel`)">Cancel game</button>
+                <button v-if="canCancel" class="button danger" :disabled="cancelling" @click="cancelGame">{{ cancelling ? 'Cancelling…' : 'Cancel game' }}</button>
                 <a :href="`/games/${game.public_id}/stage`" target="_blank" rel="noopener" class="button">Open live stage ↗</a>
             </div>
         </div>

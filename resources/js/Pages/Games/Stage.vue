@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import RealHoNiLogo from '../../Components/RealHoNiLogo.vue';
 
-const props = defineProps({ gameId: String, initialState: Object });
+const props = defineProps({ gameId: String, initialState: Object, canManage: Boolean });
 const state = ref(props.initialState);
 const wheel = ref(null);
 const busy = ref(false);
@@ -218,9 +218,10 @@ onBeforeUnmount(() => {
                         <span class="pill">{{ game.roundsConfig[round.number] }} to be selected</span>
                         <span class="pill green">{{ selectedPlayers.length }} players in the pool</span>
                     </div>
-                    <button class="button primary stage-button" :disabled="requestingRound" @click="startNextRound">
+                    <button v-if="canManage" class="button primary stage-button" :disabled="requestingRound" @click="startNextRound">
                         {{ requestingRound ? 'Starting round…' : `Start Round ${round.number + 1}` }}
                     </button>
+                    <p v-else class="muted">The next round will be started by the game host.</p>
                 </div>
             </section>
         </main>
