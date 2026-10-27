@@ -1,5 +1,6 @@
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3';
+import RealHoNiLogo from '../../Components/RealHoNiLogo.vue';
 
 const form = useForm({ email: '', password: '', remember: true });
 </script>
@@ -7,8 +8,8 @@ const form = useForm({ email: '', password: '', remember: true });
 <template>
     <Head title="Sign in" />
     <div class="login-page">
-        <form class="panel login-card" @submit.prevent="form.post('/login')">
-            <div class="brand"><span class="brand-mark">✳</span><span>spinroom</span></div>
+        <form class="panel login-card login-brand-card" @submit.prevent="form.post('/login')">
+            <div class="login-logo"><RealHoNiLogo light /></div>
             <div class="eyebrow">Admin workspace</div>
             <h1 style="font-size: 32px">Welcome back</h1>
             <p class="muted" style="font-size: 13px; line-height: 1.7">Sign in to manage participants and run your next draw.</p>

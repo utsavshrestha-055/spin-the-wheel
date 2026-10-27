@@ -24,6 +24,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/games/create', [GameController::class, 'create'])->name('games.create');
     Route::post('/games', [GameController::class, 'store'])->name('games.store');
     Route::get('/games/{game}', [GameController::class, 'show'])->name('games.show');
+    Route::get('/games/{game}/stage', [GameController::class, 'stage'])->name('games.stage');
+    Route::get('/games/{game}/state', [GameController::class, 'state'])->name('games.state');
     Route::post('/games/{game}/spin', [GameController::class, 'spin'])->middleware('throttle:30,1')->name('games.spin');
     Route::post('/games/{game}/rounds', [GameController::class, 'nextRound'])->name('games.rounds.store');
     Route::post('/games/{game}/cancel', [GameController::class, 'cancel'])->name('games.cancel');

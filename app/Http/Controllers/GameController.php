@@ -7,6 +7,7 @@ use App\Models\Game;
 use App\Models\Participant;
 use App\Services\GameService;
 use App\Services\RoundService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -61,19 +62,42 @@ class GameController extends Controller
         return redirect()->route('games.show', $game)->with('spin', $result);
     }
 
-    public function nextRound(Game $game, Request $request, RoundService $rounds): RedirectResponse
+    public function nextRound(Game $game, Request $request, RoundService $rounds): RedirectResponse|JsonResponse
     {
         $this->authorize('update', $game);
         $roundNumber = (int) $request->validate(['round_number' => ['required', 'integer', 'min:2']])['round_number'];
         try {
             $rounds->start($game, $roundNumber);
         } catch (\DomainException $exception) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $exception->getMessage()], 422);
+            }
+
             return back()->withErrors(['round' => $exception->getMessage()]);
+        }
+
+        $state = $this->stateData($game->fresh());
+        if ($request->expectsJson()) {
+            return response()->json($state);
         }
 
         return redirect()->route('games.show', $game)
             ->with('success', 'Round '.$roundNumber.' is ready.')
-            ->with('state', $this->stateData($game->fresh()));
+            ->with('state', $state);
+    }
+
+    public function stage(Game $game): Response
+    {
+        $this->authorize('view', $game);
+
+        return Inertia::render('Games/Stage', ['gameId' => $game->public_id, 'initialState' => $this->stateData($game)]);
+    }
+
+    public function state(Game $game): JsonResponse
+    {
+        $this->authorize('view', $game);
+
+        return response()->json($this->stateData($game));
     }
 
     public function cancel(Game $game): RedirectResponse
@@ -104,11 +128,23 @@ class GameController extends Controller
         $lastSpin = $round->spins->last();
         $pool = app(RoundService::class)->poolForRound($game, $round->round_number);
         $poolCount = $pool->count();
+        $poolById = $pool->keyBy('participant_id');
         $names = $lastSpin?->meta['segments'] ?? $pool->reject(fn ($entry): bool => in_array((int) $entry->participant_id, $winnerIds, true))->shuffle()->take(config('game.wheel_visible_segments'))->map(fn ($entry): array => ['name' => $entry->name, 'username' => $entry->username])->all();
+        $selectedPlayers = $round->spins->map(function ($spin) use ($poolById): array {
+            $participant = $poolById->get($spin->participant_id);
+
+            return [
+                'name' => $spin->meta['winner_name'],
+                'username' => $spin->meta['winner_username'],
+                'spin' => $spin->spin_number,
+                'priority' => ($participant?->priority ?? 0) > 0,
+                'wasPriority' => $spin->was_priority,
+            ];
+        })->values();
 
         return [
-            'game' => ['name' => $game->name, 'status' => $game->status, 'participantCount' => $game->participant_count, 'spinDurationMs' => config('game.spin_duration_ms')],
-            'round' => ['number' => $round->round_number, 'winnersCount' => $round->winners_count, 'status' => $round->status, 'spinCount' => $round->spins->count(), 'poolCount' => $poolCount, 'winners' => $round->spins->map(fn ($spin): array => ['name' => $spin->meta['winner_name'], 'username' => $spin->meta['winner_username'], 'spin' => $spin->spin_number])->values(), 'segments' => array_values($names)],
+            'game' => ['name' => $game->name, 'status' => $game->status, 'participantCount' => $game->participant_count, 'roundsConfig' => $game->rounds_config, 'spinDurationMs' => config('game.spin_duration_ms')],
+            'round' => ['number' => $round->round_number, 'winnersCount' => $round->winners_count, 'status' => $round->status, 'spinCount' => $round->spins->count(), 'poolCount' => $poolCount, 'remainingPoolCount' => max(0, $poolCount - $round->spins->count()), 'selectedPlayers' => $selectedPlayers, 'winners' => $selectedPlayers, 'segments' => array_values($names)],
         ];
     }
 }

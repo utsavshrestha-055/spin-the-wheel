@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 const props = defineProps({ game: Object, state: Object });
@@ -19,8 +19,14 @@ const visibleWinners = computed(() => {
     return spinning.value && pendingWinner.value ? winners.slice(0, -1) : winners;
 });
 const completed = computed(() => state.value.game.status === 'completed');
-const wheelStyle = computed(() => ({ background: `conic-gradient(${(state.value.round?.segments || []).map((segment, i, all) => `${i % 2 ? '#252f29' : '#425139'} ${i * 360 / all.length}deg ${(i + 1) * 360 / all.length}deg`).join(',')})` }));
+const wheelStyle = computed(() => {
+    const colors = ['var(--brand-orange)', 'var(--brand-white)', 'var(--brand-orange-soft)', 'var(--leaf-green)'];
+    const segments = state.value.round?.segments || [];
+
+    return { background: `conic-gradient(${segments.map((segment, index, all) => `${segment.winner ? 'var(--leaf-green)' : colors[index % colors.length]} ${index * 360 / all.length}deg ${(index + 1) * 360 / all.length}deg`).join(',')})` };
+});
 const spinDuration = computed(() => state.value.game.spinDurationMs || 6000);
+let stageChannel;
 let revealTimer;
 let unlockTimer;
 let nameTimer;
@@ -45,6 +51,7 @@ function animateSpin(data) {
     const target = currentRotation + alignment + 360 * (7 + Math.floor(Math.random() * 3));
     wheel.value.dataset.rotation = String(target);
     wheel.value.style.transform = `rotate(${target}deg)`;
+    stageChannel?.postMessage({ type: 'spin-resolved', spin: data.spin, state: data.state });
     clearTimeout(revealTimer);
     clearTimeout(unlockTimer);
     revealTimer = setTimeout(() => {
@@ -94,19 +101,26 @@ function startNextRound() {
             const nextState = page.props.flash.state;
             if (nextState) {
                 state.value = nextState;
+                stageChannel?.postMessage({ type: 'state', state: nextState });
             }
         },
         onError: (errors) => { toastType.value = ''; toast.value = errors.round || 'Unable to start the next round.'; },
     });
 }
 
-onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); clearTimeout(toastTimer); clearInterval(nameTimer); });
+onMounted(() => {
+    if ('BroadcastChannel' in window) {
+        stageChannel = new BroadcastChannel(`real-ho-ni-game-${props.game.public_id}`);
+    }
+});
+onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); clearTimeout(toastTimer); clearInterval(nameTimer); stageChannel?.close(); });
 </script>
 
 <template>
     <Head :title="game.name" />
-    <AppLayout>
-        <div class="topline">
+    <AppLayout fullscreen>
+        <div class="game-control">
+        <div class="topline game-topline">
             <div>
                 <div class="eyebrow">Game control · {{ state.game.status.replace('_', ' ') }}</div>
                 <h1>{{ game.name }}</h1>
@@ -114,9 +128,10 @@ onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); cl
             </div>
             <div class="toolbar">
                 <button v-if="!completed" class="button danger" @click="confirm('Cancel this game?') && router.post(`/games/${game.public_id}/cancel`)">Cancel game</button>
+                <a :href="`/games/${game.public_id}/stage`" target="_blank" rel="noopener" class="button">Open live stage ↗</a>
             </div>
         </div>
-        <div v-if="toast" class="toast" :class="{ 'winner-toast': toastType === 'winner' }">{{ toast }}</div>
+        <div v-if="toast" class="toast" :class="{ 'winner-toast': toastType === 'winner' }" role="status" aria-live="polite">{{ toast }}</div>
         <div class="panel hero-card">
             <div>
                 <div class="eyebrow">Round {{ round?.number || 1 }} of {{ game.rounds_config.length }}</div>
@@ -126,16 +141,21 @@ onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); cl
             </div>
             <div class="hero-count">{{ round?.spinCount || 0 }} / {{ round?.winnersCount || game.rounds_config[0] }}</div>
         </div>
-        <div class="wheel-layout">
+        <div class="wheel-layout game-wheel-layout">
             <section>
-                <div class="wheel-frame">
+                <div class="wheel-frame game-wheel-frame">
                     <div class="wheel-pointer"></div>
                     <div ref="wheel" class="wheel" :style="[wheelStyle, { transitionDuration: `${spinDuration}ms` }]">
-                        <span v-for="(segment, i) in (round?.segments || [])" :key="`${segment.username}-${i}`" class="wheel-label" :style="{ transform: `rotate(${(i + .5) * 360 / round.segments.length}deg) translateY(-160px)`, color: segment.winner ? '#d7ff8f' : '#aab4a9' }">@{{ segment.username }}</span>
                         <div class="wheel-center"></div>
                     </div>
+                    <div class="game-wheel-name-panel" aria-live="polite">
+                        <span class="game-wheel-name-heading">{{ spinning ? 'Names in motion' : 'Wheel names' }}</span>
+                        <span v-if="rollingName" :key="rollingName" class="ticker-name rolling-name">@{{ rollingName }}</span>
+                        <div v-else class="game-wheel-name-list">
+                            <span v-for="(person, i) in (round?.segments || []).slice(0, 4)" :key="`${person.username}-${i}`" class="ticker-name">@{{ person.username }}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="ticker"><span class="eyebrow">{{ spinning ? 'Names in motion' : 'Wheel names' }}</span><span v-if="rollingName" :key="rollingName" class="ticker-name rolling-name">@{{ rollingName }}</span><span v-else v-for="(person, i) in (round?.segments || []).slice(0, 5)" :key="`${person.username}-${i}`" class="ticker-name">@{{ person.username }}</span></div>
             </section>
             <section>
                 <div class="panel winner-box">
@@ -146,7 +166,7 @@ onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); cl
                         <div class="pill green" style="width:max-content;margin-top:12px">✳ Added to winners</div>
                     </template>
                     <template v-else>
-                        <div class="winner-name">{{ round?.spinCount || 0 }}<span style="color:#67736a"> / {{ round?.winnersCount || game.rounds_config[0] }}</span></div>
+                        <div class="winner-name">{{ round?.spinCount || 0 }}<span class="count-total"> / {{ round?.winnersCount || game.rounds_config[0] }}</span></div>
                         <div class="muted">{{ round?.status === 'completed' ? 'All winners are in.' : 'The next name is waiting.' }}</div>
                     </template>
                 </div>
@@ -158,16 +178,17 @@ onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); cl
                     <div v-if="visibleWinners.length" style="display:grid;gap:9px">
                         <div v-for="winner in visibleWinners" :key="winner.spin" class="user-row">
                             <span class="avatar" style="width:29px;height:29px;border-radius:9px">{{ String(winner.spin).padStart(2, '0') }}</span>
-                            <span style="color:#eef2eb;font-size:12px">{{ winner.name }}</span>
+                            <span class="selected-name">{{ winner.name }}</span>
                             <span class="muted" style="font:10px 'DM Mono',monospace;margin-left:auto">@{{ winner.username }}</span>
                         </div>
                     </div>
                     <div v-else class="muted" style="font-size:12px">Winners appear here after each spin.</div>
                 </div>
-                <button v-if="!completed && round?.status === 'active'" class="button primary" style="width:100%;margin-top:15px;padding:15px" :disabled="spinning" @click="spin">{{ spinning ? 'The wheel is spinning…' : '✳  Spin the wheel' }}</button>
-                <button v-else-if="!completed" class="button primary" style="width:100%;margin-top:15px;padding:15px" @click="startNextRound">Start round {{ round.number + 1 }} ↗</button>
-                <Link v-else :href="`/history/${game.public_id}`" class="button primary" style="width:100%;margin-top:15px">View final results ↗</Link>
+                <button v-if="!completed && round?.status === 'active'" class="button primary game-action-button" :disabled="spinning" @click="spin">{{ spinning ? 'The wheel is spinning…' : '✳  Spin the wheel' }}</button>
+                <button v-else-if="!completed" class="button primary game-action-button" @click="startNextRound">Start round {{ round.number + 1 }} ↗</button>
+                <Link v-else :href="`/history/${game.public_id}`" class="button primary game-action-button">View final results ↗</Link>
             </section>
+        </div>
         </div>
     </AppLayout>
 </template>
