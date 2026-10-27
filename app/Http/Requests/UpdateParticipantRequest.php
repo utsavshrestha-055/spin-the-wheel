@@ -24,11 +24,6 @@ class UpdateParticipantRequest extends FormRequest
     {
         $participant = $this->route('participant');
 
-        return ['name' => ['required', 'string', 'max:120'], 'username' => ['required', 'string', 'max:80', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('participants', 'username')->ignore($participant->id)], 'social_media' => ['nullable', 'string', 'max:80'], 'priority' => ['required', 'integer', 'min:0', 'max:4294967295'], 'is_active' => ['required', 'boolean']];
-    }
-
-    public function messages(): array
-    {
-        return ['username.regex' => 'The username field may only contain letters, numbers, dots, dashes, and underscores.'];
+        return ['name' => ['required', 'string', 'max:120'], 'username' => ['required', 'string', 'max:225', Rule::unique('participants', 'username')->ignore($participant->id)], 'social_media' => ['nullable', 'string', 'max:80'], 'priority' => ['required', 'integer', 'min:0', 'max:4294967295'], 'is_active' => ['required', 'boolean']];
     }
 }

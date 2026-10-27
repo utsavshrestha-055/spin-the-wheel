@@ -3,7 +3,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
-const props = defineProps({ participants: Object, filters: Object, totals: Object });
+const props = defineProps({ participants: Object, filters: Object, totals: Object, importFailures: Array, importFailureCount: Number });
 const showForm = ref(false);
 const editing = ref(null);
 const search = ref(props.filters.search || '');
@@ -55,6 +55,24 @@ function updatePerson() {
 
         <div class="muted" style="font-size:11px;margin-top:-20px;margin-bottom:18px">Add the participant's social platform, such as Instagram, TikTok, or another network. CSV imports can use a <code>social_media</code> column.</div>
         <div v-if="importForm.errors.file" class="error" style="margin-bottom:16px">{{ importForm.errors.file }}</div>
+        <section v-if="importFailures.length" class="panel import-failures" aria-labelledby="import-failures-title">
+            <div class="section-row">
+                <div><div class="eyebrow">CSV import</div><h2 id="import-failures-title" style="margin-top:6px">Rows that were not imported ({{ importFailureCount }})</h2></div>
+            </div>
+            <p v-if="importFailureCount > importFailures.length" class="muted">Showing the first {{ importFailures.length }} failed rows.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Row</th><th>Username</th><th>Reason</th></tr></thead>
+                    <tbody>
+                        <tr v-for="failure in importFailures" :key="failure.row">
+                            <td>{{ failure.row }}</td>
+                            <td>{{ failure.username || '(blank)' }}</td>
+                            <td>{{ failure.reason }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
         <div v-if="editing" class="panel" style="margin-bottom:17px">
             <div class="section-row">
@@ -63,7 +81,7 @@ function updatePerson() {
             </div>
             <form class="form-row" @submit.prevent="updatePerson">
                 <div class="field"><label>Name</label><input v-model="editForm.name" class="input" required></div>
-                <div class="field"><label>Username</label><input v-model="editForm.username" class="input" pattern="[A-Za-z0-9._-]+" title="Use letters, numbers, dots, dashes, and underscores only." required></div>
+                <div class="field"><label>Username</label><input v-model="editForm.username" class="input" required></div>
                 <div class="field"><label>Social media</label><input v-model="editForm.social_media" class="input" maxlength="80" placeholder="Instagram, TikTok, YouTube…"></div>
                 <div class="field" style="max-width:140px"><label>Priority</label><input v-model="editForm.priority" class="input" type="number" min="0"></div>
                 <label class="pill"><input v-model="editForm.is_active" type="checkbox"> Active</label>
@@ -79,7 +97,7 @@ function updatePerson() {
             </div>
             <form class="form-row" @submit.prevent="submit">
                 <div class="field"><label>Name</label><input v-model="form.name" class="input" required></div>
-                <div class="field"><label>Username</label><input v-model="form.username" class="input" pattern="[A-Za-z0-9._-]+" title="Use letters, numbers, dots, dashes, and underscores only." required></div>
+                <div class="field"><label>Username</label><input v-model="form.username" class="input" required></div>
                 <div class="field"><label>Social media</label><input v-model="form.social_media" class="input" maxlength="80" placeholder="Instagram, TikTok, YouTube…"></div>
                 <div class="field" style="max-width:140px"><label>Priority</label><input v-model="form.priority" class="input" type="number" min="0"></div>
                 <button class="button primary" :disabled="form.processing">Save player</button>
