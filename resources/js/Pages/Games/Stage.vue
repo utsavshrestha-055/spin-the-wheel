@@ -18,11 +18,11 @@ const selectedPlayers = computed(() => round.value?.selectedPlayers || []);
 const finalRound = computed(() => round.value?.number === game.value?.roundsConfig?.length);
 const finalCelebration = computed(() => game.value?.status === 'completed' && !busy.value);
 const roundComplete = computed(() => round.value?.status === 'completed' && !finalRound.value && !busy.value);
-const colors = ['var(--brand-orange)', 'var(--brand-white)', 'var(--brand-orange-soft)', 'var(--leaf-green)'];
+const colors = ['var(--brand-orange)', 'var(--brand-white)', 'var(--brand-orange-soft)'];
 const wheelStyle = computed(() => {
     const segments = round.value?.segments || [];
 
-    return { background: `conic-gradient(${segments.map((segment, index, all) => `${segment.winner ? 'var(--leaf-green)' : colors[index % colors.length]} ${index * 360 / all.length}deg ${(index + 1) * 360 / all.length}deg`).join(',')})` };
+    return { background: `conic-gradient(${segments.map((segment, index, all) => `${segment.winner ? 'var(--brand-orange-dark)' : colors[index % colors.length]} ${index * 360 / all.length}deg ${(index + 1) * 360 / all.length}deg`).join(',')})` };
 });
 
 let stageChannel;
@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
                 <div class="wheel-frame stage-wheel">
                     <div class="wheel-pointer"></div>
                     <div ref="wheel" class="wheel" :style="[wheelStyle, { transitionDuration: `${game?.spinDurationMs || 6000}ms` }]">
-                        <span v-for="(segment, index) in (round?.segments || [])" :key="`${segment.username}-${index}`" class="wheel-label" :class="{ 'winner-segment-label': segment.winner, 'light-segment': index % colors.length === 0 || index % colors.length === 3 }" :style="{ transform: `rotate(${(index + .5) * 360 / round.segments.length}deg) translateY(-165px)` }">@{{ segment.username }}</span>
+                        <span v-for="(segment, index) in (round?.segments || [])" :key="`${segment.username}-${index}`" class="wheel-label" :class="{ 'winner-segment-label': segment.winner, 'light-segment': index % colors.length === 0 }" :style="{ transform: `rotate(${(index + .5) * 360 / round.segments.length}deg) translateY(-165px)` }">@{{ segment.username }}</span>
                         <div class="wheel-center"></div>
                     </div>
                 </div>

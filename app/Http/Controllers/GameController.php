@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreGameRequest;
 use App\Models\Game;
+use App\Models\GameParticipant;
 use App\Models\Participant;
 use App\Services\GameService;
 use App\Services\RoundService;
@@ -42,7 +43,7 @@ class GameController extends Controller
         $state = $this->stateData($game);
         $game->unsetRelation('rounds');
 
-        return Inertia::render('Games/Control', ['game' => $game, 'state' => $state]);
+        return Inertia::render('Games/Control', ['game' => $game, 'state' => $state, 'participants' => $this->participantsData($game)]);
     }
 
     public function spin(Game $game, GameService $games): RedirectResponse
@@ -146,5 +147,18 @@ class GameController extends Controller
             'game' => ['name' => $game->name, 'status' => $game->status, 'participantCount' => $game->participant_count, 'roundsConfig' => $game->rounds_config, 'spinDurationMs' => config('game.spin_duration_ms')],
             'round' => ['number' => $round->round_number, 'winnersCount' => $round->winners_count, 'status' => $round->status, 'spinCount' => $round->spins->count(), 'poolCount' => $poolCount, 'remainingPoolCount' => max(0, $poolCount - $round->spins->count()), 'selectedPlayers' => $selectedPlayers, 'winners' => $selectedPlayers, 'segments' => array_values($names)],
         ];
+    }
+
+    /** @return array<int, array{name: string, username: string}> */
+    private function participantsData(Game $game): array
+    {
+        return $game->participants()
+            ->get(['name', 'username'])
+            ->shuffle()
+            ->map(fn (GameParticipant $participant): array => [
+                'name' => $participant->name,
+                'username' => $participant->username,
+            ])
+            ->all();
     }
 }

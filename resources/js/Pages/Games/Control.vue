@@ -3,7 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
-const props = defineProps({ game: Object, state: Object });
+const props = defineProps({ game: Object, state: Object, participants: Array });
 const state = ref(props.state);
 const spinning = ref(false);
 const result = ref(null);
@@ -13,6 +13,8 @@ const wheel = ref(null);
 const toast = ref('');
 const toastType = ref('');
 const cancelling = ref(false);
+const participantCarousel = ref(null);
+const participantCarouselPaused = ref(false);
 const round = computed(() => state.value.round);
 const visibleWinners = computed(() => {
     const winners = round.value?.winners || [];
@@ -22,10 +24,10 @@ const visibleWinners = computed(() => {
 const completed = computed(() => state.value.game.status === 'completed');
 const canCancel = computed(() => ['draft', 'in_progress'].includes(state.value.game.status));
 const wheelStyle = computed(() => {
-    const colors = ['var(--brand-orange)', 'var(--brand-white)', 'var(--brand-orange-soft)', 'var(--leaf-green)'];
+    const colors = ['var(--brand-orange)', 'var(--brand-white)', 'var(--brand-orange-soft)'];
     const segments = state.value.round?.segments || [];
 
-    return { background: `conic-gradient(${segments.map((segment, index, all) => `${segment.winner ? 'var(--leaf-green)' : colors[index % colors.length]} ${index * 360 / all.length}deg ${(index + 1) * 360 / all.length}deg`).join(',')})` };
+    return { background: `conic-gradient(${segments.map((segment, index, all) => `${segment.winner ? 'var(--brand-orange-dark)' : colors[index % colors.length]} ${index * 360 / all.length}deg ${(index + 1) * 360 / all.length}deg`).join(',')})` };
 });
 const spinDuration = computed(() => state.value.game.spinDurationMs || 6000);
 let stageChannel;
@@ -33,6 +35,7 @@ let revealTimer;
 let unlockTimer;
 let nameTimer;
 let toastTimer;
+let participantScrollTimer;
 
 function animateSpin(data) {
     const segments = data.state.round.segments;
@@ -125,12 +128,35 @@ function cancelGame() {
     });
 }
 
+function advanceParticipantCarousel() {
+    const carousel = participantCarousel.value;
+    if (!carousel || carousel.scrollWidth <= carousel.clientWidth) {
+        return;
+    }
+
+    const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+    if (carousel.scrollLeft >= maxScroll - 4) {
+        carousel.scrollTo({ left: 0, behavior: 'smooth' });
+        return;
+    }
+
+    const cardWidth = carousel.querySelector('.participant-carousel-card')?.getBoundingClientRect().width || 190;
+    carousel.scrollBy({ left: cardWidth + 10, behavior: 'smooth' });
+}
+
 onMounted(() => {
     if ('BroadcastChannel' in window) {
         stageChannel = new BroadcastChannel(`real-ho-ni-game-${props.game.public_id}`);
     }
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        participantScrollTimer = setInterval(() => {
+            if (!participantCarouselPaused.value) {
+                advanceParticipantCarousel();
+            }
+        }, 1400);
+    }
 });
-onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); clearTimeout(toastTimer); clearInterval(nameTimer); stageChannel?.close(); });
+onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); clearTimeout(toastTimer); clearInterval(nameTimer); clearInterval(participantScrollTimer); stageChannel?.close(); });
 </script>
 
 <template>
@@ -158,6 +184,20 @@ onBeforeUnmount(() => { clearTimeout(revealTimer); clearTimeout(unlockTimer); cl
             </div>
             <div class="hero-count">{{ round?.spinCount || 0 }} / {{ round?.winnersCount || game.rounds_config[0] }}</div>
         </div>
+        <section class="panel participant-carousel-panel" aria-label="All game participants">
+            <div class="section-row participant-carousel-heading">
+                <div><div class="eyebrow">Full game snapshot</div><h2 style="margin-top:6px">All participants <span class="muted">({{ participants.length }})</span></h2></div>
+                <div class="toolbar">
+                    <button class="button participant-carousel-toggle" type="button" @click="participantCarouselPaused = !participantCarouselPaused">{{ participantCarouselPaused ? 'Resume' : 'Pause' }}</button>
+                </div>
+            </div>
+            <div ref="participantCarousel" class="participant-carousel">
+                <article v-for="person in participants" :key="person.username" class="participant-carousel-card">
+                    <span class="participant-carousel-name">{{ person.name }}</span>
+                    <span class="participant-carousel-username">@{{ person.username }}</span>
+                </article>
+            </div>
+        </section>
         <div class="wheel-layout game-wheel-layout">
             <section>
                 <div class="wheel-frame game-wheel-frame">
